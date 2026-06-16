@@ -9,7 +9,13 @@ import (
 	"go.opentelemetry.io/otel/baggage"
 )
 
-const baggageHeader = "baggage"
+const (
+	baggageHeader = "baggage"
+
+	// W3C Baggage specification limits.
+	// https://www.w3.org/TR/baggage/#limits
+	maxMembers = 64
+)
 
 // Baggage is a propagator that supports the W3C Baggage format.
 //
@@ -48,8 +54,9 @@ func extractSingleBaggage(parent context.Context, carrier TextMapCarrier) contex
 		return parent
 	}
 
-	bag, err := baggage.Parse(bStr)
-	if err != nil {
+	// Invalid members are skipped; Parse returns the valid partial result.
+	bag, _ := baggage.Parse(bStr)
+	if bag.Len() == 0 {
 		return parent
 	}
 	return baggage.ContextWithBaggage(parent, bag)
@@ -62,15 +69,20 @@ func extractMultiBaggage(parent context.Context, carrier ValuesGetter) context.C
 	}
 	var members []baggage.Member
 	for _, bStr := range bVals {
-		currBag, err := baggage.Parse(bStr)
-		if err != nil {
+		currBag, _ := baggage.Parse(bStr)
+		if currBag.Len() == 0 {
 			continue
 		}
 		members = append(members, currBag.Members()...)
+		// Cap the aggregated members to bound allocations when an attacker
+		// supplies many baggage header values (CVE-2026-29181).
+		if len(members) >= maxMembers {
+			break
+		}
 	}
 
-	b, err := baggage.New(members...)
-	if err != nil || b.Len() == 0 {
+	b, _ := baggage.New(members...)
+	if b.Len() == 0 {
 		return parent
 	}
 	return baggage.ContextWithBaggage(parent, b)

@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   stale:
+    if: false
     permissions:
       issues: write
       pull-requests: write

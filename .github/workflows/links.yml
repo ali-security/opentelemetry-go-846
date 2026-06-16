@@ -12,6 +12,7 @@ permissions: read-all
 
 jobs:
   check-links:
+    if: false
     runs-on: ubuntu-latest
     permissions:
       issues: write # required for creating issues from link checker reports
